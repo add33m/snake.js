@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake.js by add33m</title>
+</head>
+
+<body>
+  <!-- Koda.nu's simple.js library (because I'm too lazy to learn p5) -->
+  <script src="https://www.koda.nu/simple.js">
+    /*
+      Main class that handles the game board, by letting every bit of the snake being a "lifetime" number
+      in a square in the GameSpace, ticking down each tick.
+    */
+    class GameSpace {
+      constructor(width, height) {
+        this.map = []; // Map is a 2D array of the GameSpace
+        this.isRunning = false; // Whether to process ticks
+        this.width = width;
+        this.height = height;
+        this.snake = {
+          x: 0,
+          y: 0,
+          xdir: 0,
+          ydir: 0,
+          length: 0,
+          foodEaten: 0,
+          oldest: 0,
+          setDir: (x,y) => {
+            const newX = this.snake.x + x;
+            const newY = this.snake.y + y;
+
+            // If turning into border, instantly lose
+            if (newX === -1 || newX === this.width || newY === -1 || newY === this.height) {
+              return this.lose();
+            }
+
+            // Prevent turning into part of the body
+            if (this.map[this.snake.y][this.snake.x + x] <= 0 && this.snake.xdir !== -x && y === 0) {
+              this.snake.xdir = x;
+              this.snake.ydir = 0;
+            } else if (this.map[newY][this.snake.x] <= 0 && this.snake.ydir !== -y && x === 0) {
+              this.snake.ydir = y;
+              this.snake.xdir = 0;
+            }
+          }
+        }
+      }
+
+      newSnake(x, y) {
+        // First, clear the game area
+        for (let my=0; my<height; my++) {
+          // For every grid line, create an array
+          this.map[my] = [];
+          // Let every square in that array be empty (0)
+          for (let mx=0; mx<width; mx++) {
+            this.map[my][mx] = 0;
+          }
+        }
+
+        // Then create a new snake at specified position
+        this.snake.x = x;
+        this.snake.y = y;
+        this.snake.xdir = 0;
+        this.snake.ydir = 0;
+        this.map[y][x] = 1;
+        this.snake.length = 1;
+      }
+
+      performAgeTick() {
+        for (let x=0; x<this.width; x++) {
+          for (let y=0; y<this.height; y++) {
+            if (this.map[y][x] > 0) {this.map[y][x]--}
+          }
+        }
+      }
+
+      performMovementTick() {
+        if (!this.isRunning) return; // Don't run if not set to do so
+
+        const newX = this.snake.x + this.snake.xdir;
+        const newY = this.snake.y + this.snake.ydir;
+
+        // Look for borders or snake
+        if (newX === -1 || newX === this.width || newY === -1 || newY === this.height || this.map[newY][newX] > 1) {
+          // Game is lost
+          this.lose();
+        } else {
+          // Look for food
+          if (this.map[newY][newX] === -1) {
+            this.snake.foodEaten++;
+            this.snake.length += 3;
+            this.createFood(newX, newY);
+          }
+          // Finally, perform age tick if not expanding (snake should expand if youngest part has an age less than snake length) and move to next square
+          let youngest = 1;
+          for (let x=0; x<this.width; x++) {
+            for (let y=0; y<this.height; y++) {
+              if (this.map[y][x] > youngest) {youngest = this.map[y][x]}
+            }
+          }
+          if (youngest >= this.snake.length) {
+            this.performAgeTick();
+            this.map[newY][newX] = youngest;
+          } else {
+            this.map[newY][newX] = youngest + 1;
+          }
+          this.snake.x += this.snake.xdir;
+          this.snake.y += this.snake.ydir;
+        }        
+      }
+
+      start() {
+        this.isRunning = true;
+      }
+
+      stop() {
+        this.isRunning = false;
+      }
+
+      lose() {
+        if (!this.isRunning) return;
+        alert("You lost! :(");
+        // Restart game from same position
+        window.location.reload();
+        // this.newSnake(this.snake.x, this.snake.y);
+        // this.createFood();
+      }
+
+      createFood(newX, newY) {
+        const spots = []
+        for (let x=0; x<this.width; x++) {
+          for (let y=0; y<this.height; y++) {
+            if (this.map[y][x] === 0 && x !== newX && y !== newY) {spots.push({x: x, y: y})}
+          }
+        }
+        if (spots.length === 0) {
+          alert("You won! :D")
+        } else {
+          const newFoodPos = spots[Math.floor(Math.random() * spots.length)]
+          this.map[newFoodPos.y][newFoodPos.x] = -1;
+        }
+      }
+
+      // Function for drawing the entire GameSpace, including the snake
+      draw(boardConfig, snakeConfig) {
+        const { bg, square, xs, xm, ys, ym, xo, yo } = boardConfig; // s=size, m=margin, o=offset
+        const { color, foodColor } = snakeConfig;
+
+        // Draw background
+        rectangle(xo, yo, xm+this.width*(xs+xm), ym+this.height*(ys+ym), mixColor(bg.r ||0, bg.g ||0, bg.b ||0));
+        // Draw squares
+        for (let x=0; x<this.width; x++) {
+          for (let y=0; y<this.height; y++) {
+            // Draw snake or food, else empty square
+            if (this.map[y][x] > 0) {
+              rectangle(xm + xo + x*(xs+xm), ym + yo + y*(ys+ym), xs, ys, mixColor(color.r ||0, color.g ||0, color.b ||0));
+            } else if (this.map[y][x] < 0) {
+              rectangle(xm + xo + x*(xs+xm), ym + yo + y*(ys+ym), xs, ys, mixColor(foodColor.r ||0, foodColor.g ||0, foodColor.b ||0));
+            } else {
+              rectangle(xm + xo + x*(xs+xm), ym + yo + y*(ys+ym), xs, ys, mixColor(square.r ||0, square.g ||0, square.b ||0));
+            }
+          }
+        }
+      }
+    }
+
+
+    // Initialize game with a new GameSpace
+    const xsize = 20;
+    const xmargin = 3;
+    const ysize = 20;
+    const ymargin = 3;
+    const width = Math.floor((totalWidth - xmargin) / (xsize+xmargin));
+    const height = Math.floor((totalHeight - ymargin) / (ysize+ymargin));
+    const gameSpace = new GameSpace(width, height);
+    
+    // Make a new snake at random position
+    gameSpace.newSnake(Math.floor(Math.random() * width), Math.floor(Math.random() * height));
+    gameSpace.createFood(-1,-1);
+    gameSpace.start();
+    
+    const boardConfig = {
+      bg: {r: 50, g: 50, b: 200},
+      square: {r: 90, g: 90, b: 250},
+      xs: xsize,
+      xm: xmargin,
+      ys: ysize,
+      ym: ymargin,
+      xo: (totalWidth - (xmargin + width * (xmargin+xsize))) / 2,
+      yo: (totalHeight - (ymargin + height * (ymargin+ysize))) / 2,
+    }
+    
+    const snakeConfig = {
+      color: {r: 200, g: 200, b: 20},
+      foodColor: {r: 200, g: 20, b: 20},
+    }
+
+    updatesPerSecond = 20;
+    tickCounter = 0;
+    performTicker = 4;
+    
+    function update() {
+      tickCounter++
+      if (keyboard.w || keyboard.up) {
+        gameSpace.snake.setDir(0,-1);
+      } else if (keyboard.s || keyboard.down) {
+        gameSpace.snake.setDir(0,1);
+      } else if (keyboard.a || keyboard.left) {
+        gameSpace.snake.setDir(-1,0);
+      } else if (keyboard.d || keyboard.right) {
+        gameSpace.snake.setDir(1,0);
+      }
+      if (tickCounter === performTicker) {
+        gameSpace.performMovementTick();
+        gameSpace.draw(boardConfig, snakeConfig);
+        tickCounter = 0;
+      }
+    }
+  </script>
+</body>
+</html>
